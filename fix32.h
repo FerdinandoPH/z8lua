@@ -60,6 +60,24 @@ struct fix32
                                      !std::is_same<T, uint64_t>::value>::type *...>
     inline explicit fix32(T x) : m_bits(int32_t(x << 16)) {}
 
+    // Non-explicit constructor for plain `int` on toolchains where `int`
+    // is a distinct type from int32_t (e.g. newlib / arm-none-eabi, where
+    // int32_t is `long int`). Lua relies on implicit conversion from int.
+    template<typename T,
+             typename std::enable_if<std::is_same<T, int>::value &&
+                                     !std::is_same<T, int32_t>::value &&
+                                     !std::is_same<T, int16_t>::value &&
+                                     !std::is_same<T, int8_t>::value>::type *...>
+    inline fix32(T x) : m_bits(int32_t(x << 16)) {}
+
+    // Same for `unsigned int` on toolchains where it differs from uint32_t.
+    template<typename T,
+             typename std::enable_if<std::is_same<T, unsigned int>::value &&
+                                     !std::is_same<T, uint32_t>::value &&
+                                     !std::is_same<T, uint16_t>::value &&
+                                     !std::is_same<T, uint8_t>::value>::type *...>
+    inline explicit fix32(T x) : m_bits(int32_t(x << 16)) {}
+
     // Explicit casts are all allowed
     inline explicit operator int8_t()   const { return m_bits >> 16; }
     inline explicit operator uint8_t()  const { return m_bits >> 16; }
@@ -79,6 +97,22 @@ struct fix32
                                      !std::is_same<T, uint32_t>::value &&
                                      !std::is_same<T, int64_t>::value &&
                                      !std::is_same<T, uint64_t>::value>::type *...>
+    inline explicit operator T() const { return T(m_bits >> 16); }
+
+    // Casts for plain int and unsigned int on toolchains where they are
+    // distinct from int32_t/uint32_t (e.g. newlib/arm-none-eabi where
+    // int32_t = long int).  Without these, (unsigned int)(fix32) falls back
+    // to operator double() followed by double→unsigned, which is UB for
+    // negative values and produces 0 on ARM — breaking luaL_checkversion_.
+    template<typename T,
+             typename std::enable_if<(std::is_same<T, int>::value ||
+                                      std::is_same<T, unsigned int>::value) &&
+                                     !std::is_same<T, int32_t>::value &&
+                                     !std::is_same<T, uint32_t>::value &&
+                                     !std::is_same<T, int16_t>::value &&
+                                     !std::is_same<T, uint16_t>::value &&
+                                     !std::is_same<T, int8_t>::value &&
+                                     !std::is_same<T, uint8_t>::value>::type *...>
     inline explicit operator T() const { return T(m_bits >> 16); }
 
     // Directly initialise bits
